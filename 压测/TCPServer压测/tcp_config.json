@@ -1,0 +1,907 @@
+{
+    "interval": "0.6",
+    "target_ip": "192.168.1.213",
+    "loop": true,
+    "verbose_logging": false,
+    "high_precision": true,
+    "timestamp_offset": "4",
+    "timestamp_length": "4",
+    "timestamp_live": true,
+    "timestamp_reverse": false,
+    "sub_connections": [
+        {
+            "name": "子连接 1",
+            "interval": "0.6",
+            "timestamp_offset": "10",
+            "timestamp_length": "4",
+            "timestamp_live": true,
+            "timestamp_reverse": false,
+            "rule_mode": "group",
+            "group_rules": [],
+            "connections": [
+                {
+                    "local_ip": "192.168.3.51",
+                    "local_port": "10050",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/ATS/DataATS210-2026092710.TXT",
+                    "enabled": true,
+                    "rules": []
+                }
+            ]
+        },
+        {
+            "name": "子连接 2",
+            "interval": "0.6",
+            "timestamp_offset": "4",
+            "timestamp_length": "4",
+            "timestamp_live": true,
+            "timestamp_reverse": false,
+            "rule_mode": "conn",
+            "group_rules": [],
+            "connections": [
+                {
+                    "local_ip": "192.168.3.141",
+                    "local_port": "10060",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/mss——/1.txt",
+                    "enabled": true,
+                    "rules": [
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 0F 00 01 10",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 01 67 00 01 40 46",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 01 0D 00 01 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 01 32 00 01 40 44",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 92 00 01 40 47",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 32 00 01 40 51",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 32 00 01 40 45",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 31 00 01 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 16 00 01 80 00",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 17 00 01 50",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        }
+                    ]
+                },
+                {
+                    "local_ip": "192.168.3.142",
+                    "local_port": "10060",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/mss——/3.txt",
+                    "enabled": true,
+                    "rules": [
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 0F 00 03 10",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 F5 00 03 40 46",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 B9 00 03 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 52 00 03 40",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 72 00 03 40 47",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 32 00 03 40 51",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 2E 00 03 40 45",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 2D 00 03 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 16 00 03 80 00",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 17 00 03 50",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        }
+                    ]
+                },
+                {
+                    "local_ip": "192.168.3.143",
+                    "local_port": "10060",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/mss——/5.txt",
+                    "enabled": true,
+                    "rules": [
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 0F 00 05 10",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 01 67 00 05 40 46",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 01 0D 00 05 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 01 52 00 05 40 44",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 B2 00 05 40 47",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 42 00 05 40 51",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 36 00 05 40 45",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 35 00 05 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 16 00 05 80 00",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 17 00 05 50",
+                            "offset": 4,
+                            "length": 4,
+                            "reverse": false
+                        }
+                    ]
+                },
+                {
+                    "local_ip": "192.168.3.144",
+                    "local_port": "10060",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/mss——/9.txt",
+                    "enabled": true,
+                    "rules": [
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 0F 00 09 10",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 01 67 00 09 40 46",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 01 0D 00 09 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 52 00 09 40 44",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 72 00 09 40 47",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 42 00 09 40 51",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 36 00 09 40 45",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 35 00 09 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 16 00 09 80 00",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 17 00 09 50",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        }
+                    ]
+                },
+                {
+                    "local_ip": "192.168.3.145",
+                    "local_port": "10060",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/mss——/12.txt",
+                    "enabled": true,
+                    "rules": [
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 0F 00 0C 10",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 01 67 00 0C 40 46",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 01 0D 00 0C 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 01 92 00 0C 40 44",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 D2 00 0C 40 47",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 42 00 0C 40 51",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 36 00 0C 40 45",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 35 00 0C 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 16 00 0C 80 00",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 17 00 0C 50",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        }
+                    ]
+                },
+                {
+                    "local_ip": "192.168.3.146",
+                    "local_port": "10060",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/mss——/15.txt",
+                    "enabled": true,
+                    "rules": [
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 0F 00 0F 10",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 F5 00 0F 40 46",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 B9 00 0F 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 72 00 0F 40 44",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 72 00 0F 40 47",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 32 00 0F 40 51",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 2E 00 0F 40 45",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 2D 00 0F 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 16 00 0F 80 00",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 17 00 0F 50",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        }
+                    ]
+                },
+                {
+                    "local_ip": "192.168.3.147",
+                    "local_port": "10060",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/mss——/17.txt",
+                    "enabled": true,
+                    "rules": [
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 0F 00 11 10",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 F5 00 11 40 46",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 B9 00 11 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 D2 00 11 40 44",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 92 00 11 40 47",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 32 00 11 40 51",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 2E 00 11 40 45",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 2D 00 11 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 16 00 11 80 00",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 17 00 11 50",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        }
+                    ]
+                },
+                {
+                    "local_ip": "192.168.3.148",
+                    "local_port": "10060",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/mss——/19.txt",
+                    "enabled": true,
+                    "rules": [
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 0F 00 13 10",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 F5 00 13 40 46",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 B9 00 13 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 01 92 00 13 40 44",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 B2 00 13 40 47",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 32 00 13 40 51",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 2E 00 13 40 45",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 2D 00 13 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 16 00 13 80 00",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 17 00 13 50",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        }
+                    ]
+                },
+                {
+                    "local_ip": "192.168.3.149",
+                    "local_port": "10060",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/mss——/230.txt",
+                    "enabled": true,
+                    "rules": [
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 0F 00 E6 10",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 83 00 E6 40 46",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 65 00 E6 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 01 92 00 E6 40 44",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 01 32 00 E6 40 47",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 26 00 E6 40 45",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 25 00 E6 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 16 00 E6 80 00",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 17 00 E6 50",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        }
+                    ]
+                },
+                {
+                    "local_ip": "192.168.3.150",
+                    "local_port": "10060",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/mss——/240.txt",
+                    "enabled": true,
+                    "rules": [
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 0F 00 F0 10",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 F5 00 F0 40 46",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 B9 00 F0 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 03 12 00 F0 40 44",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 02 32 00 F0 40 47",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 2A 00 F0 40 45",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 29 00 F0 20",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 16 00 F0 80 00",
+                            "offset": 7,
+                            "length": 4,
+                            "reverse": false
+                        },
+                        {
+                            "match_type": "prefix",
+                            "match_value": "AA 00 17 00 F0 50",
+                            "offset": 6,
+                            "length": 4,
+                            "reverse": false
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "name": "子连接 3",
+            "interval": "0.6",
+            "timestamp_offset": "4",
+            "timestamp_length": "4",
+            "timestamp_live": true,
+            "timestamp_reverse": false,
+            "rule_mode": "group",
+            "group_rules": [
+                {
+                    "match_type": "prefix",
+                    "match_value": "71 6B 6E 65 74 02 02 8F",
+                    "offset": 19,
+                    "length": 4,
+                    "reverse": true
+                },
+                {
+                    "match_type": "prefix",
+                    "match_value": "71 6B 6E 65 74 02 02 0F",
+                    "offset": 12,
+                    "length": 4,
+                    "reverse": true
+                }
+            ],
+            "connections": [
+                {
+                    "local_ip": "192.168.3.157",
+                    "local_port": "9999",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/SWITCHGAP/DataSWITCHGAP1-2026092700.TXT",
+                    "enabled": true,
+                    "rules": []
+                },
+                {
+                    "local_ip": "192.168.3.158",
+                    "local_port": "9999",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/SWITCHGAP/DataSWITCHGAP3-2026092701.TXT",
+                    "enabled": true,
+                    "rules": []
+                },
+                {
+                    "local_ip": "192.168.3.159",
+                    "local_port": "9999",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/SWITCHGAP/DataSWITCHGAP5-2026092707.TXT",
+                    "enabled": true,
+                    "rules": []
+                },
+                {
+                    "local_ip": "192.168.3.160",
+                    "local_port": "9999",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/SWITCHGAP/DataSWITCHGAP9-2026092712.TXT",
+                    "enabled": true,
+                    "rules": []
+                },
+                {
+                    "local_ip": "192.168.3.161",
+                    "local_port": "9999",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/SWITCHGAP/DataSWITCHGAP12-2026092701.TXT",
+                    "enabled": true,
+                    "rules": []
+                },
+                {
+                    "local_ip": "192.168.3.162",
+                    "local_port": "9999",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/SWITCHGAP/DataSWITCHGAP15-2026092701.TXT",
+                    "enabled": true,
+                    "rules": []
+                },
+                {
+                    "local_ip": "192.168.3.163",
+                    "local_port": "9999",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/SWITCHGAP/DataSWITCHGAP17-2026092710.TXT",
+                    "enabled": true,
+                    "rules": []
+                },
+                {
+                    "local_ip": "192.168.3.164",
+                    "local_port": "9999",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/SWITCHGAP/DataSWITCHGAP19-2026092709.TXT",
+                    "enabled": true,
+                    "rules": []
+                },
+                {
+                    "local_ip": "192.168.3.165",
+                    "local_port": "9999",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/SWITCHGAP/DataSWITCHGAP230-2026092709.TXT",
+                    "enabled": true,
+                    "rules": []
+                },
+                {
+                    "local_ip": "192.168.3.166",
+                    "local_port": "9999",
+                    "file_path": "D:/测试/测试/各线路/300/济南R2/2026-09-27/SWITCHGAP/DataSWITCHGAP240-2026092717.TXT",
+                    "enabled": true,
+                    "rules": []
+                }
+            ]
+        }
+    ]
+}

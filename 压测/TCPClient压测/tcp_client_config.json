@@ -1,0 +1,24 @@
+{
+    "interval": "0.001",
+    "loop": false,
+    "verbose_logging": false,
+    "high_precision": true,
+    "auto_reconnect": true,
+    "timestamp_offset": "4",
+    "timestamp_length": "4",
+    "timestamp_live": true,
+    "timestamp_reverse": false,
+    "sub_connections": [
+        {
+            "name": "子连接 1",
+            "interval": "0.001",
+            "timestamp_offset": "4",
+            "timestamp_length": "4",
+            "timestamp_live": true,
+            "timestamp_reverse": false,
+            "rule_mode": "group",
+            "group_rules": [],
+            "connections": []
+        }
+    ]
+}
