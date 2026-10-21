@@ -1,14 +1,14 @@
-import sys
-import tkinter as tk
-from tkinter import ttk, filedialog, messagebox, scrolledtext
-import socket
-import threading
-import re
-import time
-import os
 import json
-from datetime import datetime
+import os
+import re
+import socket
+import sys
+import threading
+import time
+import tkinter as tk
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from tkinter import ttk, filedialog, messagebox, scrolledtext
 
 # 规则模式
 RULE_MODE_GROUP = "组级规则"

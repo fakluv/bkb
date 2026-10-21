@@ -1,10 +1,10 @@
-import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox
-import threading
-import time
 import random
 import struct
+import threading
+import time
+import tkinter as tk
 from socket import *
+from tkinter import ttk, scrolledtext, messagebox
 
 from publicfunc import PublicFunc
 

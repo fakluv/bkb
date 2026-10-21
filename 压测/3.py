@@ -1,21 +1,20 @@
-import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox, simpledialog
+import binascii
+import ipaddress
+import json
+import os
+import queue
+import re
 import socket
+import struct
+import sys
 import threading
 import time
-import json
-import random
-import queue
-import select
-import struct
+import tkinter as tk
 from datetime import datetime
-import ipaddress
-import binascii
-from collections import deque
-import os
-import sys
+from tkinter import ttk, scrolledtext, messagebox, simpledialog
+
+import select
 import ttkbootstrap as tb
-import re
 
 # 缓存文件路径（程序根目录，JSON格式）
 CACHE_FILE = os.path.join(os.path.dirname(sys.argv[0]), "network_test_tool_cache.json")

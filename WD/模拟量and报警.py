@@ -1,13 +1,12 @@
 import os
-import tkinter as tk
-from tkinter import ttk, scrolledtext, messagebox
+import random
+import socket
+import struct
+import sys
 import threading
 import time
-import socket
-import sys
-import random
-import struct
-import ctypes
+import tkinter as tk
+from tkinter import ttk, scrolledtext, messagebox
 
 # 原有依赖模块
 import cphmfunc
