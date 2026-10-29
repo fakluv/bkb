@@ -1523,6 +1523,7 @@ class NMSApp(tk.Tk):
             self.refresh_tree()
             msg = (f"加载成功 (V1.0): {len(self.all_switches)} 台交换机, "
                    f"{sum(len(v) for v in self.port_mapping.values())} 条端口映射")
+            
             self._set_status(msg)
             self._log(msg)
             self.select_all()
