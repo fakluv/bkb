@@ -3,7 +3,7 @@ r"""
 UDP / TCP Server 十六进制报文发送工具
 
 功能：
-1. UDP 发送页面 / TCP Server 页面：多客户端、HEX 收发、持续发送。
+1. UDP 发送页面 / TCP Server 页面：多客户端、HEX 收发、持续发送、单次发送。
 2. #...# 之间为注释；"# #" 连写会自动合并。
 3. 配置全部保存在注册表 HKEY_CURRENT_USER\Software\UdpHexSender 下。
 
@@ -18,8 +18,6 @@ UDP / TCP Server 十六进制报文发送工具
     {02 L(1,2,3@5,stop)} 按内联列表，每 5 秒一格，到尽头停在最后一个值
     {02 L(1,2,3@5,loop)} 按内联列表，每 5 秒一格，到尽头循环
     {02 L}            按“编辑 L 列表”的全局列表 + 全局秒数 + 全局循环/停止
-  多字段 L 共享进度规则：列表值相同、秒数相同、模式相同 → 共享进度；
-  全局 L 与内联 L 各自独立。
 
   [] 内：HEX 时间戳 + 可选修饰符
     [6A DB 23 E4]        4 字节秒级时间戳（实时）
@@ -51,11 +49,12 @@ REG_PATH = r"Software\UdpHexSender"
 # ============================================================
 
 def _get_icon_path():
+    icon_name = "Benzlee-Free-Christmas-Paper-airplane.ico"  # 或改成你实际打包的文件名
     if getattr(sys, "frozen", False):
-        base = os.path.dirname(sys.executable)
+        base = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
     else:
         base = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base, "Benzlee-Free-Christmas-Paper-airplane.ico")
+    return os.path.join(base, icon_name)
 
 
 ICON_PATH = _get_icon_path()
@@ -72,7 +71,7 @@ def apply_app_icon(window):
 
 
 def center_on_parent(win, parent):
-    """把弹窗居中到父窗口。"""
+    """把弹窗居中到父窗口（已显示窗口可直接调用）。"""
     try:
         win.update_idletasks()
         pw = parent.winfo_width()
@@ -94,6 +93,46 @@ def center_on_parent(win, parent):
         win.geometry(f"+{x}+{y}")
     except Exception:
         pass
+
+
+def show_dialog_centered(win, parent, width=None, height=None):
+    """
+    弹窗已 withdraw 时调用：
+    按内容/指定尺寸计算大小，居中到父窗口后一次性显示，避免闪到左上角。
+    """
+    try:
+        win.update_idletasks()
+        ww = width if width is not None else win.winfo_reqwidth()
+        wh = height if height is not None else win.winfo_reqheight()
+
+        parent.update_idletasks()
+        pw = parent.winfo_width()
+        ph = parent.winfo_height()
+        if pw <= 1:
+            pw = parent.winfo_reqwidth()
+        if ph <= 1:
+            ph = parent.winfo_reqheight()
+        px = parent.winfo_rootx()
+        py = parent.winfo_rooty()
+
+        x = max(0, px + (pw - ww) // 2)
+        y = max(0, py + (ph - wh) // 2)
+        win.geometry(f"{ww}x{wh}+{x}+{y}")
+        win.deiconify()
+        try:
+            win.wait_visibility()
+        except tk.TclError:
+            return
+        try:
+            win.grab_set()
+        except tk.TclError:
+            pass
+    except Exception:
+        try:
+            win.deiconify()
+            win.grab_set()
+        except Exception:
+            pass
 
 
 try:
@@ -194,7 +233,6 @@ def hex_tokens_to_bytes(tokens):
 
 
 def parse_numeric_args(args_str, expected_len, name):
-    """解析 T / P 括号内的纯数字参数。"""
     if args_str is None:
         return None
     items = [x.strip() for x in args_str.split(",") if x.strip()]
@@ -207,10 +245,6 @@ def parse_numeric_args(args_str, expected_len, name):
 
 
 def parse_l_args(args_str):
-    """
-    解析 L(...) 参数。
-    返回 None（无括号）或 (vals_tuple, hold_or_None, mode_or_None)。
-    """
     if args_str is None:
         return None
     s = args_str.strip()
@@ -357,7 +391,6 @@ def build_payload(parts, counters, list_values=None, list_hold=0,
     out = bytearray()
     list_values = list_values or []
 
-    # ---------- 第一遍：收集 L 组 ----------
     l_groups = {}
     l_field_group = {}
 
@@ -384,7 +417,6 @@ def build_payload(parts, counters, list_values=None, list_hold=0,
                                  "hold": eff_hold, "mode": eff_mode}
         l_field_group[idx] = key
 
-    # ---------- 第二遍：计算每组 list_pos ----------
     for key, g in l_groups.items():
         lst = g["list"]
         hold = g["hold"]
@@ -410,7 +442,6 @@ def build_payload(parts, counters, list_values=None, list_hold=0,
             pos = raw_pos % len(lst)
         g["pos"] = pos
 
-    # ---------- 第三遍：生成字节 ----------
     for part in parts:
         kind = part[0]
         if kind == "fixed":
@@ -569,6 +600,8 @@ class UdpPage(ttk.Frame):
         self.list_values = []
         self.t_range = None
         self.sent_count = 0
+        self._dlg_t_range = None
+        self._dlg_l_list = None
 
         self.ui_queue = queue.Queue()
         self._schedule_poll()
@@ -705,6 +738,8 @@ class UdpPage(ttk.Frame):
         bf.pack(fill="x", padx=4, pady=4)
         self.btn_send = ttk.Button(bf, text="发送", command=self.on_send)
         self.btn_send.pack(side="left")
+        self.btn_send_once = ttk.Button(bf, text="发送一次", command=self.on_send_once)
+        self.btn_send_once.pack(side="left", padx=(6, 0))
         ttk.Button(bf, text="清空日志", command=self.clear_log).pack(side="left", padx=6)
         ttk.Label(bf, textvariable=self.status_var).pack(side="right")
 
@@ -733,12 +768,39 @@ class UdpPage(ttk.Frame):
         self.txt_log.delete("1.0", "end")
 
     def edit_t_range(self):
+        dlg = self._dlg_t_range
+        if dlg is not None:
+            try:
+                if dlg.winfo_exists():
+                    dlg.deiconify()
+                    dlg.lift()
+                    dlg.focus_force()
+                    return
+            except tk.TclError:
+                pass
+            self._dlg_t_range = None
+
         win = tk.Toplevel(self)
+        win.withdraw()
+        self._dlg_t_range = win
         apply_app_icon(win)
         win.title("编辑 T 全局范围")
         win.transient(self.winfo_toplevel())
-        win.geometry("360x180")
-        win.after_idle(lambda: center_on_parent(win, self.winfo_toplevel()))
+        win.resizable(False, False)
+
+        def close_dialog():
+            self._dlg_t_range = None
+            try:
+                win.grab_release()
+            except Exception:
+                pass
+            try:
+                win.destroy()
+            except Exception:
+                pass
+
+        win.protocol("WM_DELETE_WINDOW", close_dialog)
+
         ttk.Label(win, text="未设置时按字段满量程处理（1 字节 0~255、2 字节 0~65535…）。").pack(
             anchor="w", padx=10, pady=(10, 4))
         ttk.Label(win, text="最小值").pack(anchor="w", padx=10)
@@ -757,37 +819,77 @@ class UdpPage(ttk.Frame):
             hi_s = hi_var.get().strip()
             if not lo_s and not hi_s:
                 self.t_range = None
-                win.destroy()
                 self.log("已清除 T 全局范围（按字段满量程）")
+                close_dialog()
                 return
             try:
                 lo = int(lo_s)
                 hi = int(hi_s)
             except ValueError:
                 messagebox.showerror("错误", "范围必须是整数", parent=win)
+                try:
+                    win.grab_set()
+                except tk.TclError:
+                    pass
                 return
             if lo < 0 or hi < 0:
                 messagebox.showerror("错误", "范围必须是非负整数", parent=win)
+                try:
+                    win.grab_set()
+                except tk.TclError:
+                    pass
                 return
             if lo > hi:
                 messagebox.showerror("错误", "最小值不能大于最大值", parent=win)
+                try:
+                    win.grab_set()
+                except tk.TclError:
+                    pass
                 return
             self.t_range = (lo, hi)
-            win.destroy()
             self.log(f"已设置 T 全局范围 {lo}~{hi}")
+            close_dialog()
 
         row = ttk.Frame(win)
         row.pack(fill="x", padx=10, pady=8)
         ttk.Button(row, text="确定", command=save).pack(side="right")
-        ttk.Button(row, text="取消", command=win.destroy).pack(side="right", padx=6)
+        ttk.Button(row, text="取消", command=close_dialog).pack(side="right", padx=6)
+
+        show_dialog_centered(win, self.winfo_toplevel())
 
     def edit_l_list(self):
+        dlg = self._dlg_l_list
+        if dlg is not None:
+            try:
+                if dlg.winfo_exists():
+                    dlg.deiconify()
+                    dlg.lift()
+                    dlg.focus_force()
+                    return
+            except tk.TclError:
+                pass
+            self._dlg_l_list = None
+
         win = tk.Toplevel(self)
+        win.withdraw()
+        self._dlg_l_list = win
         apply_app_icon(win)
         win.title("编辑 L 全局列表")
         win.transient(self.winfo_toplevel())
-        win.geometry("560x560")
-        win.after_idle(lambda: center_on_parent(win, self.winfo_toplevel()))
+        win.resizable(False, False)
+
+        def close_dialog():
+            self._dlg_l_list = None
+            try:
+                win.grab_release()
+            except Exception:
+                pass
+            try:
+                win.destroy()
+            except Exception:
+                pass
+
+        win.protocol("WM_DELETE_WINDOW", close_dialog)
 
         ttk.Label(
             win,
@@ -843,18 +945,24 @@ class UdpPage(ttk.Frame):
                 self.list_mode = mode_var.get() or "loop"
                 for k in [k for k in self.counters if k.startswith("l_")]:
                     del self.counters[k]
-                win.destroy()
                 self.log(
                     f"已设置 L 全局列表，共 {len(vals)} 个值，保持 {hold} 秒，"
                     f"{'循环' if self.list_mode == 'loop' else '停止'}"
                 )
+                close_dialog()
             except ValueError as e:
                 messagebox.showerror("列表格式错误", str(e), parent=win)
+                try:
+                    win.grab_set()
+                except tk.TclError:
+                    pass
 
         row = ttk.Frame(win)
         row.pack(fill="x", padx=10, pady=8)
         ttk.Button(row, text="确定", command=save).pack(side="right")
-        ttk.Button(row, text="取消", command=win.destroy).pack(side="right", padx=6)
+        ttk.Button(row, text="取消", command=close_dialog).pack(side="right", padx=6)
+
+        show_dialog_centered(win, self.winfo_toplevel(), width=560, height=560)
 
     def get_net_config(self):
         local_ip = self.var_local_ip.get().strip() or "0.0.0.0"
@@ -905,6 +1013,7 @@ class UdpPage(ttk.Frame):
                 for k in [k for k in self.counters if k.startswith("l_")]:
                     del self.counters[k]
                 self.btn_send.config(text="停止发送")
+                self.btn_send_once.config(state="disabled")
                 self.thread = threading.Thread(
                     target=self.sender_loop,
                     args=(parts, local_ip, local_port, target_ip,
@@ -925,6 +1034,28 @@ class UdpPage(ttk.Frame):
         except Exception as e:
             self.stop_event.set()
             self.btn_send.config(state="normal", text="发送")
+            self.btn_send_once.config(state="normal")
+            messagebox.showerror("错误", str(e))
+
+    def on_send_once(self):
+        if self.thread is not None and self.thread.is_alive():
+            messagebox.showwarning("提示", "持续发送中，请先停止再使用“发送一次”")
+            return
+        try:
+            local_ip, local_port, target_ip, target_port, _interval = self.get_net_config()
+            list_hold = parse_hold_seconds(self.var_list_hold.get())
+            template = self.txt_template.get("1.0", "end-1c")
+            parts = compile_template(template)
+            if not parts:
+                raise ValueError("报文为空或没有有效十六进制内容")
+            payload = build_payload(
+                parts, self.counters, self.list_values,
+                list_hold, self.t_range, self.list_mode,
+            )
+            self.send_single_udp(payload, local_ip, local_port, target_ip, target_port)
+            self.status_var.set(f"已单次发送 1 包，共 {len(payload)} 字节")
+            self.log(f"[单次] 发送 {len(payload)} 字节: {hex_preview(payload)}")
+        except Exception as e:
             messagebox.showerror("错误", str(e))
 
     def send_single_udp(self, payload, local_ip, local_port, target_ip, target_port):
@@ -974,6 +1105,7 @@ class UdpPage(ttk.Frame):
     def finish_sending(self):
         self.thread = None
         self.btn_send.config(state="normal", text="发送")
+        self.btn_send_once.config(state="normal")
         self.status_var.set(f"已停止，共发送 {self.sent_count} 包")
 
     def cleanup(self):
@@ -1003,6 +1135,8 @@ class TcpServerPage(ttk.Frame):
         self.t_range = None
         self.list_mode = "loop"
         self.sent_count = 0
+        self._dlg_t_range = None
+        self._dlg_l_list = None
 
         self.ui_queue = queue.Queue()
         self._schedule_poll()
@@ -1121,20 +1255,22 @@ class TcpServerPage(ttk.Frame):
             row=0, column=4, sticky="w", padx=4, pady=4)
         self.btn_send = ttk.Button(sc, text="发送", command=self.on_send_button, width=10)
         self.btn_send.grid(row=0, column=5, padx=4, pady=4)
+        self.btn_send_once = ttk.Button(sc, text="发送一次", command=self.on_send_once, width=10)
+        self.btn_send_once.grid(row=0, column=6, padx=4, pady=4)
         ttk.Label(sc, textvariable=self.send_status_var).grid(
-            row=0, column=6, sticky="w", padx=4, pady=4)
+            row=0, column=7, sticky="w", padx=4, pady=4)
         ttk.Label(
             sc,
             text="{.. T} / {.. P} / {.. L} 可在报文中直接指定；无指令默认随机",
             foreground="gray",
-        ).grid(row=1, column=0, columnspan=7, sticky="w", padx=4, pady=2)
+        ).grid(row=1, column=0, columnspan=8, sticky="w", padx=4, pady=2)
 
         sf = ttk.LabelFrame(
             self,
             text="发送数据 (HEX，支持 #...# 注释、{..} 变化值、[..] 时间戳、[.. +/-N] 小时偏移、[.. R] 反转)"
         )
         sf.pack(fill="x", padx=4, pady=4)
-        self.txt_send = tk.Text(sf, height=18, wrap="char",
+        self.txt_send = tk.Text(sf, height=25, wrap="char",
                                 font=("Consolas", 10),
                                 undo=True, autoseparators=True, maxundo=-1)
         tscroll = ttk.Scrollbar(sf, orient="vertical", command=self.txt_send.yview)
@@ -1314,12 +1450,39 @@ class TcpServerPage(ttk.Frame):
             self.var_client.set("")
 
     def edit_t_range(self):
+        dlg = self._dlg_t_range
+        if dlg is not None:
+            try:
+                if dlg.winfo_exists():
+                    dlg.deiconify()
+                    dlg.lift()
+                    dlg.focus_force()
+                    return
+            except tk.TclError:
+                pass
+            self._dlg_t_range = None
+
         win = tk.Toplevel(self)
+        win.withdraw()
+        self._dlg_t_range = win
         apply_app_icon(win)
         win.title("编辑 T 全局范围")
         win.transient(self.winfo_toplevel())
-        win.geometry("360x180")
-        win.after_idle(lambda: center_on_parent(win, self.winfo_toplevel()))
+        win.resizable(False, False)
+
+        def close_dialog():
+            self._dlg_t_range = None
+            try:
+                win.grab_release()
+            except Exception:
+                pass
+            try:
+                win.destroy()
+            except Exception:
+                pass
+
+        win.protocol("WM_DELETE_WINDOW", close_dialog)
+
         ttk.Label(win, text="未设置时按字段满量程处理（1 字节 0~255、2 字节 0~65535…）。").pack(
             anchor="w", padx=10, pady=(10, 4))
         ttk.Label(win, text="最小值").pack(anchor="w", padx=10)
@@ -1338,37 +1501,77 @@ class TcpServerPage(ttk.Frame):
             hi_s = hi_var.get().strip()
             if not lo_s and not hi_s:
                 self.t_range = None
-                win.destroy()
                 self.log_recv("[系统] 已清除 T 全局范围（按字段满量程）")
+                close_dialog()
                 return
             try:
                 lo = int(lo_s)
                 hi = int(hi_s)
             except ValueError:
                 messagebox.showerror("错误", "范围必须是整数", parent=win)
+                try:
+                    win.grab_set()
+                except tk.TclError:
+                    pass
                 return
             if lo < 0 or hi < 0:
                 messagebox.showerror("错误", "范围必须是非负整数", parent=win)
+                try:
+                    win.grab_set()
+                except tk.TclError:
+                    pass
                 return
             if lo > hi:
                 messagebox.showerror("错误", "最小值不能大于最大值", parent=win)
+                try:
+                    win.grab_set()
+                except tk.TclError:
+                    pass
                 return
             self.t_range = (lo, hi)
-            win.destroy()
             self.log_recv(f"[系统] 已设置 T 全局范围 {lo}~{hi}")
+            close_dialog()
 
         row = ttk.Frame(win)
         row.pack(fill="x", padx=10, pady=8)
         ttk.Button(row, text="确定", command=save).pack(side="right")
-        ttk.Button(row, text="取消", command=win.destroy).pack(side="right", padx=6)
+        ttk.Button(row, text="取消", command=close_dialog).pack(side="right", padx=6)
+
+        show_dialog_centered(win, self.winfo_toplevel())
 
     def edit_l_list(self):
+        dlg = self._dlg_l_list
+        if dlg is not None:
+            try:
+                if dlg.winfo_exists():
+                    dlg.deiconify()
+                    dlg.lift()
+                    dlg.focus_force()
+                    return
+            except tk.TclError:
+                pass
+            self._dlg_l_list = None
+
         win = tk.Toplevel(self)
+        win.withdraw()
+        self._dlg_l_list = win
         apply_app_icon(win)
         win.title("编辑 L 全局列表")
         win.transient(self.winfo_toplevel())
-        win.geometry("560x560")
-        win.after_idle(lambda: center_on_parent(win, self.winfo_toplevel()))
+        win.resizable(False, False)
+
+        def close_dialog():
+            self._dlg_l_list = None
+            try:
+                win.grab_release()
+            except Exception:
+                pass
+            try:
+                win.destroy()
+            except Exception:
+                pass
+
+        win.protocol("WM_DELETE_WINDOW", close_dialog)
 
         ttk.Label(
             win,
@@ -1424,18 +1627,24 @@ class TcpServerPage(ttk.Frame):
                 self.list_mode = mode_var.get() or "loop"
                 for k in [k for k in self.send_counters if k.startswith("l_")]:
                     del self.send_counters[k]
-                win.destroy()
                 self.log_recv(
                     f"[系统] 已设置 L 全局列表，共 {len(vals)} 个值，保持 {hold} 秒，"
                     f"{'循环' if self.list_mode == 'loop' else '停止'}"
                 )
+                close_dialog()
             except ValueError as e:
                 messagebox.showerror("列表格式错误", str(e), parent=win)
+                try:
+                    win.grab_set()
+                except tk.TclError:
+                    pass
 
         row = ttk.Frame(win)
         row.pack(fill="x", padx=10, pady=8)
         ttk.Button(row, text="确定", command=save).pack(side="right")
-        ttk.Button(row, text="取消", command=win.destroy).pack(side="right", padx=6)
+        ttk.Button(row, text="取消", command=close_dialog).pack(side="right", padx=6)
+
+        show_dialog_centered(win, self.winfo_toplevel(), width=560, height=560)
 
     def on_send_button(self):
         if self.send_thread is not None and self.send_thread.is_alive():
@@ -1488,6 +1697,7 @@ class TcpServerPage(ttk.Frame):
             for k in [k for k in self.send_counters if k.startswith("l_")]:
                 del self.send_counters[k]
             self.btn_send.config(text="停止发送")
+            self.btn_send_once.config(state="disabled")
             self.send_status_var.set("持续发送中...")
             self.send_thread = threading.Thread(
                 target=self.send_loop,
@@ -1516,6 +1726,62 @@ class TcpServerPage(ttk.Frame):
                 self.send_status_var.set(f"已发送 1 包，共 {len(payload)} 字节")
             except Exception as e:
                 messagebox.showerror("发送失败", str(e))
+
+    def on_send_once(self):
+        if self.send_thread is not None and self.send_thread.is_alive():
+            messagebox.showwarning("提示", "持续发送中，请先停止再使用“发送一次”")
+            return
+
+        sel = self.var_client.get().strip()
+        if not sel:
+            messagebox.showwarning("提示", "请先选择客户端")
+            return
+        try:
+            cid = int(sel.split(" ")[0].lstrip("#"))
+        except Exception:
+            messagebox.showerror("错误", "客户端选择无效")
+            return
+
+        with self.client_lock:
+            if cid not in self.clients:
+                messagebox.showerror("错误", "客户端已断开")
+                return
+
+        text = self.txt_send.get("1.0", "end-1c")
+        try:
+            parts = compile_template(text)
+        except Exception as e:
+            messagebox.showerror("报文解析失败", str(e))
+            return
+        if not parts:
+            messagebox.showwarning("提示", "发送内容为空")
+            return
+
+        try:
+            list_hold = parse_hold_seconds(self.var_list_hold.get())
+        except ValueError as e:
+            messagebox.showerror("错误", str(e))
+            return
+
+        try:
+            payload = build_payload(
+                parts, self.send_counters, self.list_values,
+                list_hold, self.t_range, self.list_mode,
+            )
+            with self.client_lock:
+                info = self.clients.get(cid)
+            if info is None:
+                raise RuntimeError("客户端已断开")
+            info["conn"].sendall(payload)
+            ts = time.strftime("%H:%M:%S")
+            addr = info["addr"]
+            self.log_recv(
+                f"[{ts}] 发(单次) #{cid} {addr[0]}:{addr[1]} ({len(payload)}B): "
+                f"{hex_preview(payload)}"
+            )
+            self.send_status_var.set(f"已单次发送 1 包，共 {len(payload)} 字节")
+        except Exception as e:
+            messagebox.showerror("发送失败", str(e))
 
     def send_loop(self, parts, cid, interval, list_hold, list_mode):
         local_count = 0
@@ -1555,6 +1821,7 @@ class TcpServerPage(ttk.Frame):
     def finish_send(self, count):
         self.send_thread = None
         self.btn_send.config(state="normal", text="发送")
+        self.btn_send_once.config(state="normal")
         self.send_status_var.set(f"已停止，共发送 {count} 包")
 
     def cleanup(self):
