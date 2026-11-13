@@ -32,7 +32,7 @@ SCOPE_VALUES = [SCOPE_GROUP, SCOPE_CONN]
 class TcpServerSender:
     def __init__(self, root):
         self.root = root
-        self.root.title("TCPserver 压测工具 v3.1（支持自定义报文）")
+        self.root.title("TCPserver 压测工具 v4.0（支持自定义报文）")
         self.root.geometry("1300x950")
         self.set_window_icon()
 
