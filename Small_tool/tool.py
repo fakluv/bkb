@@ -5,9 +5,13 @@
   1. 字节按组分隔
   2. 批量生成 16 进制编号
   3. 设备校验：批量加后缀 + 逐条检查 + 对不上的给出具体原因
+  4. 进制转换：2 / 8 / 10 / 16 进制、时间戳、格式化时间互转
 """
 
+import os
 import re
+import sys
+import datetime
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -821,6 +825,515 @@ class DeviceCheckTab(ttk.Frame):
 
 
 # ============================================================
+# 核心逻辑：进制 / 时间戳 / 时间互转
+# ============================================================
+IN_KINDS = ("自动识别", "2 进制", "10 进制", "16 进制",
+            "时间戳（秒）", "时间戳（毫秒）", "格式化时间")
+
+TIME_FORMATS = (
+    "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f",
+    "%Y-%m-%d %H:%M", "%Y-%m-%d",
+    "%Y/%m/%d %H:%M:%S", "%Y/%m/%d %H:%M:%S.%f",
+    "%Y/%m/%d %H:%M", "%Y/%m/%d",
+    "%Y.%m.%d %H:%M:%S", "%Y.%m.%d",
+    "%Y年%m月%d日 %H:%M:%S", "%Y年%m月%d日",
+    "%Y%m%d%H%M%S", "%Y%m%d %H%M%S",
+)
+
+WEEKDAY_CN = "一二三四五六日"
+
+BASE_RULES = {
+    2: (r"[01]+", "只能包含 0 和 1"),
+    8: (r"[0-7]+", "只能包含 0 ~ 7"),
+    10: (r"\d+", "只能包含 0 ~ 9"),
+    16: (r"[0-9a-fA-F]+", "只能包含 0 ~ 9、a ~ f"),
+}
+
+
+def parse_int_text(text, base):
+    """把一段文本按指定进制解析成整数，返回 (值, 错误信息)"""
+    raw = text.strip()
+    if not raw:
+        return None, "请输入要转换的数值"
+
+    s = raw.replace("，", "")
+    neg = s.startswith("-")
+    if neg:
+        s = s[1:].lstrip()
+    s = re.sub(r"[\s_,、;；]+", "", s)
+
+    if base == 16:
+        s = re.sub(r"^0[xX]", "", s)
+    elif base == 2:
+        s = re.sub(r"^0[bB]", "", s)
+    elif base == 10:
+        s = re.sub(r"^0[dD]", "", s)
+
+    if not s:
+        return None, "没有解析到有效数字"
+
+    pattern, hint = BASE_RULES[base]
+    if not re.fullmatch(pattern, s):
+        return None, f"{base} 进制数字{hint}，当前输入：{raw}"
+
+    try:
+        value = int(s, base)
+    except ValueError:
+        return None, "数字太长，超出可处理范围"
+    return (-value if neg else value), None
+
+
+def parse_float_text(text):
+    """解析时间戳（允许小数）"""
+    s = re.sub(r"[\s_,，]+", "", text.strip())
+    if not s:
+        return None, "请输入时间戳"
+    try:
+        value = float(s)
+    except ValueError:
+        return None, f"不是合法的时间戳：{text.strip()}"
+    if value != value or value in (float("inf"), float("-inf")):
+        return None, "时间戳不能是无穷大或 NaN"
+    return value, None
+
+
+def parse_time_text(text):
+    """解析常见格式的时间文本，返回 (时间戳秒, 错误信息)"""
+    s = text.strip().replace("T", " ")
+    is_utc = False
+    if s.endswith(("Z", "z")):
+        s = s[:-1].strip()
+        is_utc = True
+    s = re.sub(r"\s+", " ", s)
+
+    for fmt in TIME_FORMATS:
+        try:
+            dt = datetime.datetime.strptime(s, fmt)
+        except ValueError:
+            continue
+        tz = datetime.timezone.utc if is_utc else None
+        return dt.replace(tzinfo=tz).timestamp(), None
+
+    return None, ("无法识别的时间格式，可用示例：\n"
+                  "2026-11-13 16:23:52 / 2026-11-13 16:23 / 2026-11-13\n"
+                  "2026/11/13 16:23:52 / 20261113162352 / 2026-11-13T16:23:52Z")
+
+
+def fmt_ts_value(ts):
+    """时间戳显示：整数就不带小数点，带毫秒才保留 3 位"""
+    if abs(ts - round(ts)) < 1e-6:
+        return str(int(round(ts)))
+    return f"{ts:.3f}".rstrip("0").rstrip(".")
+
+
+def local_utc_offset():
+    """当前时区与 UTC 的偏移，拿不到就按 0 处理"""
+    try:
+        return datetime.datetime.now().astimezone().utcoffset() or datetime.timedelta(0)
+    except Exception:
+        return datetime.timedelta(0)
+
+
+def ts_to_text(ts, use_utc=False, with_weekday=False):
+    """时间戳 -> 格式化字符串；超出范围返回提示文本"""
+    try:
+        if use_utc:
+            dt = datetime.datetime(1970, 1, 1) + datetime.timedelta(seconds=ts)
+            txt = dt.strftime("%Y-%m-%d %H:%M:%S")
+            ms = int(round((ts - int(ts)) * 1000))
+            if ms:
+                txt += f".{ms:03d}"
+            return txt
+
+        try:
+            dt = datetime.datetime.fromtimestamp(ts)
+        except (OverflowError, OSError, ValueError):
+            # 超出系统 fromtimestamp 范围时，用偏移量换算，仍可显示
+            dt = (datetime.datetime(1970, 1, 1)
+                  + datetime.timedelta(seconds=ts)
+                  + local_utc_offset())
+
+        txt = dt.strftime("%Y-%m-%d %H:%M:%S")
+        if dt.microsecond:
+            txt += f".{dt.microsecond // 1000:03d}"
+        if with_weekday:
+            txt += f"  周{WEEKDAY_CN[dt.weekday()]}"
+        return txt
+    except (OverflowError, OSError, ValueError):
+        return "超出可表示范围"
+
+
+def to_byte_stream(value):
+    """整数 -> 大写 16 进制字节流（空格分隔）"""
+    if value < 0:
+        return "负数无字节表示"
+    length = max(1, (value.bit_length() + 7) // 8)
+    return " ".join(f"{b:02X}" for b in value.to_bytes(length, "big"))
+
+
+def detect_time_unit(value):
+    """猜这个数字更像秒还是毫秒时间戳：>= 1e11 认为是毫秒"""
+    return "毫秒" if abs(value) >= 100_000_000_000 else "秒"
+
+
+# ============================================================
+# 页面 4：进制 / 时间戳 / 时间互转
+# ============================================================
+class BaseConvertTab(ttk.Frame):
+    UNIT_CHOICES = ("自动", "秒", "毫秒")
+
+    ROWS = (
+        ("bin", "2 进制"),
+        ("oct", "8 进制"),
+        ("dec", "10 进制"),
+        ("hex", "16 进制"),
+        ("bytes", "字节流"),
+        ("ts_s", "时间戳（秒）"),
+        ("ts_ms", "时间戳（毫秒）"),
+        ("local", "本地时间"),
+        ("utc", "UTC 时间"),
+    )
+
+    def __init__(self, master):
+        super().__init__(master, padding=10)
+
+        self.result_vars = {}
+        self.result_labels = {}
+
+        self._build_input()
+        self._build_result()
+
+    # ---------------- 界面 ----------------
+    def _build_input(self):
+        box = ttk.LabelFrame(self, text="输入", padding=(14, 10))
+        box.pack(fill="x")
+        box.columnconfigure(3, weight=1)
+
+        ttk.Label(box, text="输入类型").grid(row=0, column=0, sticky="w")
+        self.kind_var = tk.StringVar(value="10 进制")
+        kind_cb = ttk.Combobox(box, textvariable=self.kind_var, state="readonly",
+                               width=13, values=IN_KINDS)
+        kind_cb.grid(row=0, column=1, sticky="w", padx=(8, 18))
+        kind_cb.bind("<<ComboboxSelected>>",
+                     lambda e: self.input_entry.focus_set())
+
+        ttk.Label(box, text="数值 / 时间").grid(row=0, column=2, sticky="w")
+        self.input_var = tk.StringVar()
+        self.input_entry = ttk.Entry(box, textvariable=self.input_var,
+                                     font=("Consolas", 11))
+        self.input_entry.grid(row=0, column=3, sticky="ew",
+                              padx=(8, 16), ipady=3)
+        self.input_entry.bind("<Return>", lambda e: self.do_convert())
+
+        ttk.Button(box, text="转 换", width=8,
+                   command=self.do_convert).grid(row=0, column=4, sticky="w")
+        ttk.Button(box, text="用当前时间", width=11,
+                   command=self.use_now).grid(row=0, column=5, sticky="w", padx=(8, 0))
+        ttk.Button(box, text="清空", width=6,
+                   command=self.clear_all).grid(row=0, column=6, sticky="w", padx=(8, 0))
+
+        sub = ttk.Frame(box)
+        sub.grid(row=1, column=0, columnspan=7, sticky="ew", pady=(12, 0))
+
+        ttk.Label(sub, text="时间戳单位").pack(side="left")
+        self.unit_var = tk.StringVar(value="自动")
+        unit_cb = ttk.Combobox(sub, textvariable=self.unit_var, state="readonly",
+                               width=7, values=self.UNIT_CHOICES)
+        unit_cb.pack(side="left", padx=(8, 16))
+        unit_cb.bind("<<ComboboxSelected>>",
+                     lambda e: (self.do_convert(), self.input_entry.focus_set()))
+
+        ttk.Label(sub, foreground="#888888",
+                  text="「自动」仅用于进制输入：≥ 1e11 按毫秒，否则按秒").pack(side="left")
+
+        ttk.Label(box, foreground="#888888",
+                  text="支持示例：255 ／ 0xFF ／ 0b1111 ／ 1700000000 ／ "
+                       "1700000000000 ／ 2026-11-13 16:23:52（回车即可转换）"
+                  ).grid(row=2, column=0, columnspan=7, sticky="w", pady=(8, 0))
+
+    def _build_result(self):
+        box = ttk.LabelFrame(self, text="转换结果", padding=(14, 8))
+        box.pack(fill="both", expand=True, pady=(10, 0))
+        box.columnconfigure(1, weight=1)
+
+        for i, (key, label) in enumerate(self.ROWS):
+            row = i * 2
+
+            lb = ttk.Label(box, text=label, width=13, anchor="w",
+                           foreground="#333333")
+            lb.grid(row=row, column=0, sticky="w", pady=4)
+            self.result_labels[key] = lb
+
+            var = tk.StringVar()
+            self.result_vars[key] = var
+            entry = tk.Entry(box, textvariable=var, state="readonly",
+                             readonlybackground="#ffffff", relief="flat",
+                             font=("Consolas", 11), fg="#111111",
+                             highlightthickness=1,
+                             highlightbackground="#d9d9d9",
+                             highlightcolor="#4a90d9")
+            entry.grid(row=row, column=1, sticky="ew", padx=(6, 12), ipady=4)
+
+            ttk.Button(box, text="复制", width=5,
+                       command=lambda k=key: self.copy_one(k)
+                       ).grid(row=row, column=2, sticky="w")
+
+            if i < len(self.ROWS) - 1:
+                ttk.Separator(box, orient="horizontal").grid(
+                    row=row + 1, column=0, columnspan=3, sticky="ew", pady=2)
+
+            # 每行等高，窗口拉高时各行均匀铺开，不会把空白都堆在底部
+            box.rowconfigure(row, weight=1)
+
+        tail = len(self.ROWS) * 2
+        ttk.Separator(box, orient="horizontal").grid(
+            row=tail, column=0, columnspan=3, sticky="ew", pady=(8, 0))
+        ttk.Label(box, foreground="#9a9a9a",
+                  text="进制、时间戳、本地时间与 UTC 时间一次性全部给出；"
+                       "每行右侧可单独复制，底部可一次复制全部。"
+                  ).grid(row=tail + 1, column=0, columnspan=3,
+                         sticky="w", pady=(8, 0))
+
+        bar = ttk.Frame(self)
+        bar.pack(fill="x", pady=(10, 0))
+
+        ttk.Button(bar, text="复制全部结果",
+                   command=self.copy_all).pack(side="left")
+
+        self.status_var = tk.StringVar(
+            value="输入数值或时间后按回车（或点【转 换】）")
+        self.status_label = ttk.Label(bar, textvariable=self.status_var,
+                                      foreground="#666666")
+        self.status_label.pack(side="right")
+
+    # ---------------- 交互 ----------------
+    def focus_input(self):
+        self.input_entry.focus_set()
+
+    def _set_status(self, text, color="#666666"):
+        self.status_label.configure(foreground=color)
+        self.status_var.set(text)
+
+    def _fail(self, msg):
+        self._clear_results()
+        self._set_status("✘ " + str(msg).replace("\n", "　"), "#b00020")
+
+    @staticmethod
+    def _looks_like_time(text):
+        s = text.strip()
+        if re.search(r"[-/:年月日]", s):
+            return True
+        return bool(re.fullmatch(r"\d{14}", s))
+
+    def _parse_auto(self, text):
+        s = text.strip()
+        if self._looks_like_time(s):
+            return "time"
+        if re.match(r"^[+-]?0[xX]", s):
+            return "hex"
+        if re.match(r"^[+-]?0[bB]", s):
+            return "bin"
+        if re.fullmatch(r"[+-]?[\d\s_,，]+", s):
+            return "dec"
+        return None
+
+    def _clear_results(self):
+        for var in self.result_vars.values():
+            var.set("")
+        for key, label in self.ROWS:
+            self.result_labels[key].configure(text=label)
+
+    def do_convert(self):
+        kind = self.kind_var.get()
+        text = self.input_var.get().strip()
+
+        if not text:
+            self._clear_results()
+            self._set_status("请先输入要转换的内容", "#b00020")
+            self.input_entry.focus_set()
+            return
+
+        mode = {
+            "自动识别": self._parse_auto(text),
+            "2 进制": "bin",
+            "10 进制": "dec",
+            "16 进制": "hex",
+            "时间戳（秒）": "sec",
+            "时间戳（毫秒）": "ms",
+            "格式化时间": "time",
+        }.get(kind, None)
+
+        if mode is None:
+            self._clear_results()
+            self._set_status("无法自动识别输入类型，请在上方手动选择", "#b00020")
+            return
+
+        from_base = mode in ("bin", "dec", "hex")
+        unit = None
+
+        if mode == "time":
+            ts, err = parse_time_text(text)
+            if err:
+                self._clear_results()
+                self._set_status("✘ " + err.replace("\n", "　"), "#b00020")
+                return
+            int_value = int(ts)
+            ts_sec = ts
+
+        elif mode in ("sec", "ms"):
+            value, err = parse_float_text(text)
+            if err:
+                self._clear_results()
+                self._set_status("✘ " + err, "#b00020")
+                return
+            int_value = int(value)
+            ts_sec = value if mode == "sec" else value / 1000.0
+            unit = "秒" if mode == "sec" else "毫秒"
+
+        else:
+            base = {"bin": 2, "dec": 10, "hex": 16}[mode]
+            int_value, err = parse_int_text(text, base)
+            if err:
+                self._clear_results()
+                self._set_status("✘ " + err, "#b00020")
+                return
+            unit = self.unit_var.get()
+            if unit not in ("秒", "毫秒"):
+                unit = detect_time_unit(int_value)
+            ts_sec = int_value / 1000.0 if unit == "毫秒" else float(int_value)
+
+        # ---- 填充结果 ----
+        sign = "-" if int_value < 0 else ""
+        abs_v = abs(int_value)
+
+        self.result_vars["bin"].set(sign + format(abs_v, "b"))
+        self.result_vars["oct"].set(sign + format(abs_v, "o"))
+        self.result_vars["dec"].set(str(int_value))
+        self.result_vars["hex"].set(sign + format(abs_v, "X"))
+        self.result_vars["bytes"].set(to_byte_stream(int_value))
+        self.result_vars["ts_s"].set(fmt_ts_value(ts_sec))
+        self.result_vars["ts_ms"].set(fmt_ts_value(ts_sec * 1000))
+        self.result_vars["local"].set(ts_to_text(ts_sec, with_weekday=True))
+        self.result_vars["utc"].set(ts_to_text(ts_sec, use_utc=True))
+
+        local_label = "本地时间"
+        if from_base:
+            local_label = f"本地时间（按{unit}）"
+        self.result_labels["local"].configure(text=local_label)
+
+        bits = max(1, abs_v.bit_length())
+        note = f"位宽 {bits} 位 / {(bits + 7) // 8} 字节"
+        if from_base:
+            note += f"｜时间按「{unit}」解释，可切换单位再看"
+        if int_value < 0:
+            note += "｜负数"
+        self._set_status("✔ 转换完成：" + note, "#2e7d32")
+
+    # ---------------- 复制 / 清空 ----------------
+    def copy_one(self, key):
+        value = self.result_vars[key].get()
+        label = self.result_labels[key].cget("text")
+        if not value:
+            self._set_status(f"「{label}」还没有结果，请先转换", "#b00020")
+            return
+        self.clipboard_clear()
+        self.clipboard_append(value)
+        self.update()
+        self._set_status(f"✔ 已复制：{label}", "#2e7d32")
+
+    def copy_all(self):
+        lines = []
+        for key, _ in self.ROWS:
+            value = self.result_vars[key].get()
+            if value:
+                label = self.result_labels[key].cget("text")
+                lines.append(f"{label}: {value}")
+        if not lines:
+            self._set_status("还没有结果，请先转换", "#b00020")
+            return
+        self.clipboard_clear()
+        self.clipboard_append("\n".join(lines))
+        self.update()
+        self._set_status(f"✔ 已复制 {len(lines)} 行结果", "#2e7d32")
+
+    def use_now(self):
+        now = datetime.datetime.now()
+        self.kind_var.set("格式化时间")
+        self.input_var.set(now.strftime("%Y-%m-%d %H:%M:%S"))
+        self.do_convert()
+        self.input_entry.focus_set()
+        self.input_entry.select_range(0, "end")
+
+    def clear_all(self):
+        self.input_var.set("")
+        self._clear_results()
+        self._set_status("已清空")
+        self.input_entry.focus_set()
+
+
+# ============================================================
+# 窗口图标
+# ============================================================
+ICON_NAMES = ("tool.ico", "icon.ico", "app.ico")
+ICON_FALLBACKS = (
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "tool.ico")
+    if "__file__" in globals() else "",
+    r"D:\Downloads\Iconshock-Real-Vista-Construction-Tool-kit.ico",
+)
+
+
+def find_icon_path():
+    """优先用程序目录里的 tool.ico，其次目录内任意 .ico，最后用绝对路径兜底"""
+    dirs = []
+    try:
+        dirs.append(os.path.dirname(os.path.abspath(__file__)))
+    except NameError:
+        pass
+    if getattr(sys, "frozen", False):
+        dirs.append(os.path.dirname(os.path.abspath(sys.executable)))
+    dirs.append(os.getcwd())
+
+    seen = set()
+    uniq_dirs = []
+    for d in dirs:
+        if d and d not in seen:
+            seen.add(d)
+            uniq_dirs.append(d)
+
+    for d in uniq_dirs:
+        for name in ICON_NAMES:
+            path = os.path.join(d, name)
+            if os.path.isfile(path):
+                return path
+
+    for d in uniq_dirs:
+        try:
+            for f in sorted(os.listdir(d)):
+                if f.lower().endswith(".ico"):
+                    return os.path.join(d, f)
+        except OSError:
+            continue
+
+    for path in ICON_FALLBACKS:
+        if path and os.path.isfile(path):
+            return path
+    return None
+
+
+def apply_window_icon(root: tk.Tk):
+    path = find_icon_path()
+    if not path:
+        return
+    # iconbitmap(path) 设置本窗口图标，default=path 让弹出的对话框也沿用同一图标
+    for setter in (lambda: root.iconbitmap(path),
+                   lambda: root.iconbitmap(default=path)):
+        try:
+            setter()
+        except Exception:
+            pass
+
+
+# ============================================================
 # 主窗口
 # ============================================================
 class HexToolApp:
@@ -828,7 +1341,8 @@ class HexToolApp:
         self.root = root
         root.title("字节工具集")
         root.geometry("1020x920")
-        root.minsize(860, 700)
+        root.minsize(880, 700)
+        apply_window_icon(root)
 
         main = ttk.Frame(root, padding=10)
         main.pack(fill="both", expand=True)
@@ -838,14 +1352,23 @@ class HexToolApp:
 
         self.split_tab = SplitTab(self.notebook)
         self.gen_tab = GenHexTab(self.notebook)
+        self.convert_tab = BaseConvertTab(self.notebook)
         self.device_tab = DeviceCheckTab(self.notebook)
 
         self.notebook.add(self.split_tab, text="  字节按组分隔  ")
         self.notebook.add(self.gen_tab, text="  批量生成 16 进制编号  ")
+        self.notebook.add(self.convert_tab, text="  进制转换  ")
         self.notebook.add(self.device_tab, text="  设备校验  ")
+
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
 
         root.bind("<Control-Return>", lambda e: self.run_current())
         root.bind("<F5>", lambda e: self.run_current())
+
+    def _on_tab_changed(self, _event=None):
+        current = self.notebook.nametowidget(self.notebook.select())
+        if current is self.convert_tab:
+            self.convert_tab.focus_input()
 
     def run_current(self):
         current = self.notebook.nametowidget(self.notebook.select())
@@ -853,6 +1376,8 @@ class HexToolApp:
             self.gen_tab.do_generate()
         elif current is self.device_tab:
             self.device_tab.do_check()
+        elif current is self.convert_tab:
+            self.convert_tab.do_convert()
         else:
             self.split_tab.do_split()
         return "break"
@@ -863,6 +1388,8 @@ def main():
     try:
         from ctypes import windll
         windll.shcore.SetProcessDpiAwareness(1)
+        # 让任务栏用本程序的图标，而不是 python.exe 的图标
+        windll.shell32.SetCurrentProcessExplicitAppUserModelID("bkb.smalltool.1")
     except Exception:
         pass
 
