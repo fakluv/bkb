@@ -23,6 +23,7 @@ class PacketSender:
         self.root = root
         self.root.title("UDP 发报机")
         self.root.geometry("1300x950")
+        self.set_window_icon()
 
         if getattr(sys, 'frozen', False):
             base_dir = os.path.dirname(sys.executable)
@@ -68,6 +69,24 @@ class PacketSender:
         self.create_widgets()
         self.load_config()
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+    def set_window_icon(self):
+        """设置窗口左上角图标"""
+        try:
+            # 获取资源路径（兼容 PyInstaller 打包）
+            if hasattr(sys, '_MEIPASS'):
+                # 打包后的临时目录
+                base_path = sys._MEIPASS
+            else:
+                base_path = os.path.abspath(".")
+            icon_path = os.path.join(base_path, "udp.ico")
+            if os.path.exists(icon_path):
+                self.root.iconbitmap(icon_path)
+            else:
+                # 如果找不到图标文件，可以使用默认图标（无图标）
+                pass
+        except Exception as e:
+            print(f"设置图标失败：{e}")
 
     def get_local_ips(self):
         ips = ["0.0.0.0"]
