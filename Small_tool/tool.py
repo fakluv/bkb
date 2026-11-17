@@ -15,6 +15,15 @@ import datetime
 import tkinter as tk
 from tkinter import ttk, messagebox
 
+# 兼容 Windows / macOS / Linux：等宽字体与平台差异集中在这里
+IS_WINDOWS = sys.platform.startswith("win")
+IS_MAC = sys.platform == "darwin"
+
+MONO_FAMILY = "Consolas" if IS_WINDOWS else ("Menlo" if IS_MAC else "DejaVu Sans Mono")
+MONO_FONT = (MONO_FAMILY, 10)
+MONO_FONT_S = (MONO_FAMILY, 9)
+MONO_FONT_L = (MONO_FAMILY, 11)
+
 
 # ============================================================
 # 核心逻辑：字节按组分隔
@@ -271,7 +280,7 @@ class SplitTab(ttk.Frame):
         in_frame.pack(fill="both", expand=True)
 
         self.input_text = tk.Text(in_frame, wrap="char", undo=True,
-                                  font=("Consolas", 10), height=8)
+                                  font=MONO_FONT, height=8)
         in_sb = ttk.Scrollbar(in_frame, orient="vertical", command=self.input_text.yview)
         self.input_text.configure(yscrollcommand=in_sb.set)
         in_sb.pack(side="right", fill="y")
@@ -281,7 +290,7 @@ class SplitTab(ttk.Frame):
         out_frame.pack(fill="both", expand=True, pady=(8, 0))
 
         self.output_text = tk.Text(out_frame, wrap="char",
-                                   font=("Consolas", 10), height=12)
+                                   font=MONO_FONT, height=12)
         out_sb = ttk.Scrollbar(out_frame, orient="vertical", command=self.output_text.yview)
         self.output_text.configure(yscrollcommand=out_sb.set)
         out_sb.pack(side="right", fill="y")
@@ -390,7 +399,7 @@ class GenHexTab(ttk.Frame):
         in_frame.pack(fill="both", expand=True)
 
         self.input_text = tk.Text(in_frame, wrap="char", undo=True,
-                                  font=("Consolas", 10), height=8)
+                                  font=MONO_FONT, height=8)
         in_sb = ttk.Scrollbar(in_frame, orient="vertical", command=self.input_text.yview)
         self.input_text.configure(yscrollcommand=in_sb.set)
         in_sb.pack(side="right", fill="y")
@@ -400,7 +409,7 @@ class GenHexTab(ttk.Frame):
         out_frame.pack(fill="both", expand=True, pady=(8, 0))
 
         self.output_text = tk.Text(out_frame, wrap="char",
-                                   font=("Consolas", 10), height=12)
+                                   font=MONO_FONT, height=12)
         out_sb = ttk.Scrollbar(out_frame, orient="vertical", command=self.output_text.yview)
         self.output_text.configure(yscrollcommand=out_sb.set)
         out_sb.pack(side="right", fill="y")
@@ -514,7 +523,7 @@ class DeviceCheckTab(ttk.Frame):
         sql_frame.pack(fill="x", pady=(8, 0))
 
         self.sql_text = tk.Text(sql_frame, wrap="char", undo=True,
-                                font=("Consolas", 10), height=3)
+                                font=MONO_FONT, height=3)
         sql_sb = ttk.Scrollbar(sql_frame, orient="vertical",
                                command=self.sql_text.yview)
         self.sql_text.configure(yscrollcommand=sql_sb.set)
@@ -561,7 +570,7 @@ class DeviceCheckTab(ttk.Frame):
         preview_frame.pack(fill="x", pady=(6, 0))
 
         self.preview_text = tk.Text(preview_frame, wrap="char",
-                                    font=("Consolas", 9), height=5,
+                                    font=MONO_FONT_S, height=5,
                                     foreground="#004080")
         preview_sb = ttk.Scrollbar(preview_frame, orient="vertical",
                                    command=self.preview_text.yview)
@@ -576,7 +585,7 @@ class DeviceCheckTab(ttk.Frame):
         dev_frame.pack(fill="both", expand=True, pady=(6, 0))
 
         self.devices_text = tk.Text(dev_frame, wrap="char", undo=True,
-                                    font=("Consolas", 10), height=5)
+                                    font=MONO_FONT, height=5)
         dev_sb = ttk.Scrollbar(dev_frame, orient="vertical",
                                command=self.devices_text.yview)
         self.devices_text.configure(yscrollcommand=dev_sb.set)
@@ -611,7 +620,7 @@ class DeviceCheckTab(ttk.Frame):
         out_frame.pack(fill="both", expand=True, pady=(4, 0))
 
         self.output_text = tk.Text(out_frame, wrap="char",
-                                   font=("Consolas", 10), height=6)
+                                   font=MONO_FONT, height=6)
         out_sb = ttk.Scrollbar(out_frame, orient="vertical",
                                command=self.output_text.yview)
         self.output_text.configure(yscrollcommand=out_sb.set)
@@ -1020,7 +1029,7 @@ class BaseConvertTab(ttk.Frame):
         ttk.Label(box, text="数值 / 时间").grid(row=0, column=2, sticky="w")
         self.input_var = tk.StringVar()
         self.input_entry = ttk.Entry(box, textvariable=self.input_var,
-                                     font=("Consolas", 11))
+                                     font=MONO_FONT_L)
         self.input_entry.grid(row=0, column=3, sticky="ew",
                               padx=(8, 16), ipady=3)
         self.input_entry.bind("<Return>", lambda e: self.do_convert())
@@ -1068,7 +1077,7 @@ class BaseConvertTab(ttk.Frame):
             self.result_vars[key] = var
             entry = tk.Entry(box, textvariable=var, state="readonly",
                              readonlybackground="#ffffff", relief="flat",
-                             font=("Consolas", 11), fg="#111111",
+                             font=MONO_FONT_L, fg="#111111",
                              highlightthickness=1,
                              highlightbackground="#d9d9d9",
                              highlightcolor="#4a90d9")
@@ -1272,9 +1281,10 @@ class BaseConvertTab(ttk.Frame):
 
 
 # ============================================================
-# 窗口图标
+# 窗口图标 / 资源查找（Windows 用 .ico，macOS 用 .png 与打包的 .icns）
 # ============================================================
 ICON_NAMES = ("tool.ico", "icon.ico", "app.ico")
+PNG_ICON_NAMES = ("appicon.png", "icon.png")
 ICON_FALLBACKS = (
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "tool.ico")
     if "__file__" in globals() else "",
@@ -1282,45 +1292,79 @@ ICON_FALLBACKS = (
 )
 
 
-def find_icon_path():
-    """优先用程序目录里的 tool.ico，其次目录内任意 .ico，最后用绝对路径兜底"""
+def app_dirs():
+    """资源可能所在的位置：源码目录、打包解压目录、可执行文件目录、当前目录"""
     dirs = []
     try:
         dirs.append(os.path.dirname(os.path.abspath(__file__)))
     except NameError:
         pass
+
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        dirs.append(meipass)
+
     if getattr(sys, "frozen", False):
-        dirs.append(os.path.dirname(os.path.abspath(sys.executable)))
+        exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+        dirs.append(exe_dir)
+        # macOS .app 结构：Contents/MacOS/xxx -> Contents/Resources
+        dirs.append(os.path.normpath(os.path.join(exe_dir, "..", "Resources")))
+
     dirs.append(os.getcwd())
 
-    seen = set()
-    uniq_dirs = []
+    seen, uniq = set(), []
     for d in dirs:
-        if d and d not in seen:
+        if d and d not in seen and os.path.isdir(d):
             seen.add(d)
-            uniq_dirs.append(d)
+            uniq.append(d)
+    return uniq
 
-    for d in uniq_dirs:
-        for name in ICON_NAMES:
+
+def find_asset(names, suffixes=()):
+    """先按文件名精确找，再按后缀兜底"""
+    dirs = app_dirs()
+    for d in dirs:
+        for name in names:
             path = os.path.join(d, name)
             if os.path.isfile(path):
                 return path
 
-    for d in uniq_dirs:
-        try:
-            for f in sorted(os.listdir(d)):
-                if f.lower().endswith(".ico"):
-                    return os.path.join(d, f)
-        except OSError:
-            continue
+    if suffixes:
+        suffixes = tuple(s.lower() for s in suffixes)
+        for d in dirs:
+            try:
+                for f in sorted(os.listdir(d)):
+                    if f.lower().endswith(suffixes):
+                        return os.path.join(d, f)
+            except OSError:
+                continue
+    return None
 
-    for path in ICON_FALLBACKS:
-        if path and os.path.isfile(path):
-            return path
+
+def find_icon_path():
+    path = find_asset(ICON_NAMES, (".ico",))
+    if path:
+        return path
+    for fallback in ICON_FALLBACKS:
+        if fallback and os.path.isfile(fallback):
+            return fallback
     return None
 
 
 def apply_window_icon(root: tk.Tk):
+    if IS_MAC:
+        # macOS 的 Dock / Cmd-Tab 图标来自 .app 里的 icon.icns，
+        # 这里再设一张 PNG，源码直接运行（未打包）时也有图标
+        png = find_asset(PNG_ICON_NAMES, (".png",))
+        if png:
+            try:
+                image = tk.PhotoImage(file=png)
+                root.iconphoto(True, image)
+                root._icon_image = image  # 防止被垃圾回收
+            except Exception:
+                pass
+        return
+
     path = find_icon_path()
     if not path:
         return
@@ -1340,7 +1384,12 @@ class HexToolApp:
     def __init__(self, root: tk.Tk):
         self.root = root
         root.title("字节工具集")
-        root.geometry("1020x920")
+
+        # 按屏幕大小自适应，避免小屏 MacBook 上窗口超出屏幕
+        sw, sh = root.winfo_screenwidth(), root.winfo_screenheight()
+        win_w = max(880, min(1020, sw - 80))
+        win_h = max(700, min(920, sh - 130))
+        root.geometry(f"{win_w}x{win_h}")
         root.minsize(880, 700)
         apply_window_icon(root)
 
@@ -1364,6 +1413,8 @@ class HexToolApp:
 
         root.bind("<Control-Return>", lambda e: self.run_current())
         root.bind("<F5>", lambda e: self.run_current())
+        if IS_MAC:
+            root.bind("<Command-Return>", lambda e: self.run_current())
 
     def _on_tab_changed(self, _event=None):
         current = self.notebook.nametowidget(self.notebook.select())
@@ -1385,13 +1436,14 @@ class HexToolApp:
 
 # ============================================================
 def main():
-    try:
-        from ctypes import windll
-        windll.shcore.SetProcessDpiAwareness(1)
-        # 让任务栏用本程序的图标，而不是 python.exe 的图标
-        windll.shell32.SetCurrentProcessExplicitAppUserModelID("bkb.smalltool.1")
-    except Exception:
-        pass
+    if IS_WINDOWS:
+        try:
+            from ctypes import windll
+            windll.shcore.SetProcessDpiAwareness(1)
+            # 让任务栏用本程序的图标，而不是 python.exe 的图标
+            windll.shell32.SetCurrentProcessExplicitAppUserModelID("bkb.smalltool.1")
+        except Exception:
+            pass
 
     root = tk.Tk()
     HexToolApp(root)
