@@ -36,8 +36,19 @@ UDP / TCP Server 十六进制报文发送工具  v3
     ① 自行填写列表   手动输入数值
     ② 按bit位（单bit）位数为 N 时列表为 1,2,4,8…（2 的幂），
                       每个值只有 1 个 bit 为 1，可用“起始bit”指定从哪一位开始
-    ③ 按bit位（逐位累进）位数为 N 时列表为 1,3,7,15…（bit 依次置 1）
+    ③ 按bit位（逐位累进）数值为 2^(n+1)-1，n 从起始bit 开始递增，位数决定个数：
+                      起始bit 0、4 位 → 1,3,7,15；起始bit 2、6 位 → 7,15,31,63,127,255
     字节数决定 bit 上限：1 字节 → bit 0~7，2 字节 → bit 0~15，依次类推。
+
+    勾选“列表值反转”：
+      · 单bit          → 只是把列表倒序：4 位 → 8,4,2,1
+      · 逐位累进       → 换成“全 1 逐位关位”语义，值 = 全 1 基准值 - (2^n - 1)，
+                         n 从 起始bit+1 起、共“位数”个（多用于 FF 逐 bit 递减）
+                         1 字节、8 位 → FE, FC, F8, F0, E0, C0, 80, 00
+      · 逐位累进 + 勾“从 FF 开始” → n 从 0 起，序列最前面多一个全 1：
+                         1 字节、8 位 → FF, FE, FC, F8, F0, E0, C0, 80
+                         2 字节、8 位 → FFFE, FFFC, FFF8, FFF0, FFE0, FFC0, FF80, FF00
+      · 手动填写       → 直接把编辑框里的列表倒序（所见即所得）
 
   [] 内：HEX 时间戳 + 可选修饰符
     [6A DB 23 E4]        4 字节秒级时间戳（实时）
@@ -622,11 +633,21 @@ def parse_hold_seconds(text: str) -> float:
     return v
 
 
-def build_bit_list(gen_mode, total_bits, start_bit, count):
+def build_bit_list(gen_mode, total_bits, start_bit, count, reverse=False,
+                   from_ff=False):
     """
     按 bit 位生成列表。
       gen_mode=single     → 只有 1 个 bit 为 1：1,2,4,8（从 start_bit 起）
-      gen_mode=cumulative → bit 依次置 1：  1,3,7,15
+      gen_mode=cumulative → 2 的 (n+1) 次方减 1 递增，n 从起始 bit 开始：
+                            起始 0、4 位 → 1, 3, 7, 15
+                            起始 2、6 位 → 7, 15, 31, 63, 127, 255
+
+    reverse=True 且 cumulative → 换成“全 1 逐位关位”语义（多用于 FF 递减）：
+        值 = 全 1 基准值 - (2^n - 1)，n 从 起始bit+1 起共 count 个
+        1 字节、8 位 → FE, FC, F8, F0, E0, C0, 80, 00（8 个 bit 依次清零）
+        from_ff=True 时 n 从 0 起（首个值就是全 1），即序列最前面加一个 FF：
+        1 字节、8 位 → FF, FE, FC, F8, F0, E0, C0, 80
+    single 模式的 reverse 仍然只是把列表倒序（8,4,2,1）。
     """
     if total_bits <= 0:
         raise ValueError("字节数必须大于 0")
@@ -634,14 +655,33 @@ def build_bit_list(gen_mode, total_bits, start_bit, count):
         raise ValueError("位数至少为 1")
     if start_bit < 0 or start_bit >= total_bits:
         raise ValueError(f"起始 bit 必须在 0~{total_bits - 1}")
-    if start_bit + count > total_bits:
-        raise ValueError(
-            f"起始 bit {start_bit} + 位数 {count} 超出 bit 0~{total_bits - 1}"
-        )
 
     if gen_mode == GEN_MODE_SINGLE:
-        return [1 << (start_bit + i) for i in range(count)]
-    return [((1 << (i + 1)) - 1) << start_bit for i in range(count)]
+        if start_bit + count > total_bits:
+            raise ValueError(
+                f"起始 bit {start_bit} + 位数 {count} 超出 bit 0~{total_bits - 1}")
+        vals = [1 << (start_bit + i) for i in range(count)]
+        return vals[::-1] if reverse else vals
+
+    if reverse:
+        # 逐位累进 + 反转：全 1 基准值逐位关位（FF → FE → FC → F8 …）
+        # 值 = 全 1 - (2^n - 1)；默认 n 从 起始bit+1 起（即先关最低位，首值 FE/FFFE），
+        # 勾“从 FF 开始”时 n 从 0 起，首个值就是全 1。
+        base = (1 << total_bits) - 1
+        n0 = 0 if from_ff else start_bit + 1
+        n_last = n0 + count - 1
+        if n_last > total_bits:
+            raise ValueError(
+                f"从 n={n0} 起共 {count} 个值，最大指数 {n_last} 超出上限 {total_bits}"
+                f"（{total_bits} 位字段最多能关到 0）"
+            )
+        return [base - ((1 << n) - 1) for n in range(n0, n0 + count)]
+
+    # 逐位累进（正序）：2^(n+1)-1，n 从起始 bit 开始，共 count 个
+    if start_bit + count > total_bits:
+        raise ValueError(
+            f"起始 bit {start_bit} + 位数 {count} 超出 bit 0~{total_bits - 1}")
+    return [(1 << (start_bit + k)) - 1 for k in range(1, count + 1)]
 
 
 def detect_l_widths(template_text):
@@ -739,7 +779,7 @@ class LListDialog:
             command=self._on_gen_mode,
         ).grid(row=1, column=0, columnspan=6, sticky="w", padx=10, pady=(4, 0))
         ttk.Radiobutton(
-            gen, text="按bit位（逐位累进）：bit 依次置 1，如 4 位 → 1, 3, 7, 15",
+            gen, text="按bit位（逐位累进）：值 = 2^(n+1)-1，n 从起始bit 起，如起始0、4位 → 1, 3, 7, 15",
             variable=self.gen_var, value=GEN_MODE_CUMULATIVE,
             command=self._on_gen_mode,
         ).grid(row=2, column=0, columnspan=6, sticky="w", padx=10, pady=(4, 0))
@@ -782,8 +822,9 @@ class LListDialog:
 
         self.preview_var = tk.StringVar(value="")
         ttk.Label(self.param, textvariable=self.preview_var,
-                  foreground="#1a5fb4").grid(row=2, column=0, columnspan=5,
-                                             sticky="w", pady=(6, 0))
+                  foreground="#1a5fb4", wraplength=560,
+                  justify="left").grid(row=2, column=0, columnspan=5,
+                                       sticky="w", pady=(6, 0))
         self.tip_var = tk.StringVar(value="")
         ttk.Label(self.param, textvariable=self.tip_var, foreground="gray",
                   wraplength=560, justify="left").grid(
@@ -792,6 +833,23 @@ class LListDialog:
         # ---- ② 列表值 ----
         lf = ttk.LabelFrame(body, text="② 列表值（可手动修改；一行一个，或逗号/空格分隔）")
         lf.pack(fill="both", expand=True, pady=(8, 0))
+        self.rev_var = tk.BooleanVar(
+            value=str(self.gen_state.get("rev", "0")).lower() in ("1", "true"))
+        rev_row = ttk.Frame(lf)
+        rev_row.pack(fill="x", anchor="w", padx=8, pady=(6, 0))
+        ttk.Checkbutton(
+            rev_row, text="列表值反转（倒序，如 1, 3, 7 → 7, 3, 1）",
+            variable=self.rev_var, command=self._on_rev_toggle,
+        ).pack(side="left")
+        self.ff_var = tk.BooleanVar(
+            value=str(self.gen_state.get("ff", "0")).lower() in ("1", "true"))
+        ff_row = ttk.Frame(lf)
+        ff_row.pack(fill="x", anchor="w", padx=8, pady=(2, 0))
+        self.chk_ff = ttk.Checkbutton(
+            ff_row, text="从 FF 开始（仅“逐位累进+反转”生效：FF, FE, FC, F8 …）",
+            variable=self.ff_var, command=self._on_ff_toggle,
+        )
+        self.chk_ff.pack(side="left")
         box_frame = ttk.Frame(lf)
         box_frame.pack(fill="both", expand=True, padx=6, pady=6)
         self.box = tk.Text(box_frame, height=12, width=54, font=("Consolas", 10),
@@ -873,20 +931,44 @@ class LListDialog:
                 + " / ".join(f"{w} 字节" for w in uniq)
                 + "），请按需填写字节数。")
 
-    def _on_gen_mode(self, *_):
+    def _ff_active(self):
+        """“从 FF 开始”只在 逐位累进 + 列表值反转 时生效。"""
+        return (self.gen_var.get() == GEN_MODE_CUMULATIVE
+                and bool(self.rev_var.get()))
+
+    def _refresh_param_states(self):
         bit_mode = self.gen_var.get() in (GEN_MODE_SINGLE, GEN_MODE_CUMULATIVE)
         state = "normal" if bit_mode else "disabled"
-        for w in (self.entry_bytes, self.entry_start, self.entry_bits,
-                  self.btn_detect, self.btn_sel):
+        for w in (self.entry_bytes, self.entry_bits, self.btn_detect, self.btn_sel):
             try:
                 w.configure(state=state)
             except Exception:
                 pass
+        # 起始bit：FF 递减时被忽略（n 从 0 起）
+        start_state = "disabled" if (self._ff_active() and self.ff_var.get()) else state
+        try:
+            self.entry_start.configure(state=start_state)
+        except Exception:
+            pass
+        try:
+            self.chk_ff.configure(state="normal" if self._ff_active() else "disabled")
+            if not self._ff_active():
+                self.ff_var.set(False)
+        except Exception:
+            pass
+
+    def _on_gen_mode(self, *_):
+        self._refresh_param_states()
         self._update_range_hint()
-        if bit_mode:
+        if self.gen_var.get() in (GEN_MODE_SINGLE, GEN_MODE_CUMULATIVE):
             self._fill_from_bits()
         else:
             self.preview_var.set("")
+
+    def _on_ff_toggle(self):
+        self._refresh_param_states()
+        if self.gen_var.get() in (GEN_MODE_SINGLE, GEN_MODE_CUMULATIVE):
+            self._fill_from_bits()
 
     def _update_range_hint(self):
         try:
@@ -925,15 +1007,15 @@ class LListDialog:
             raise ValueError(f"起始 bit 范围 0~{total - 1}")
         if count < 1:
             raise ValueError("位数至少为 1")
-        if start + count > total:
-            raise ValueError(
-                f"起始 bit {start} + 位数 {count} 超出 bit 0~{total - 1}")
         return total, start, count
 
     def _fill_from_bits(self):
         try:
             total, start, count = self._bit_params()
-            vals = build_bit_list(self.gen_var.get(), total, start, count)
+            from_ff = self._ff_active() and bool(self.ff_var.get())
+            vals = build_bit_list(self.gen_var.get(), total, start, count,
+                                  reverse=bool(self.rev_var.get()),
+                                  from_ff=from_ff)
         except ValueError as e:
             self.preview_var.set(f"参数错误：{e}")
             return
@@ -942,9 +1024,14 @@ class LListDialog:
         self.box.insert("1.0", "\n".join(map(str, vals)))
 
         hexw = max(2, (total + 3) // 4)
-        head = ", ".join(f"{v}(0x{v:0{hexw}X})" for v in vals[:8])
-        more = f" …（共 {len(vals)} 个值）" if len(vals) > 8 else f"（共 {len(vals)} 个值）"
-        self.preview_var.set("预览：" + head + more)
+        head = ", ".join(f"{v}(0x{v:0{hexw}X})" for v in vals[:4])
+        more = f" …（共 {len(vals)} 个值）" if len(vals) > 4 else f"（共 {len(vals)} 个值）"
+        if from_ff:
+            self.preview_var.set("预览（从 FF 起逐位关位）：" + head + more)
+        elif self.gen_var.get() == GEN_MODE_CUMULATIVE and self.rev_var.get():
+            self.preview_var.set("预览（逐位关位）：" + head + more)
+        else:
+            self.preview_var.set("预览：" + head + more)
 
     def _use_template_width(self):
         try:
@@ -978,21 +1065,48 @@ class LListDialog:
         self.bytes_var.set(str(n))
         self.tip_var.set(f"已按选中的 {n} 字节填入（bit 0~{n * 8 - 1}）。")
 
-    # ---------------- 保存 ----------------
+    # ---------------- 反转 / 保存 ----------------
+
+    def _read_box_values(self):
+        raw = self.box.get("1.0", "end-1c")
+        tokens = re.split(r"[\s,，/;；、]+", raw)
+        vals = []
+        for t in tokens:
+            t = t.strip()
+            if not t:
+                continue
+            try:
+                vals.append(int(t, 10))
+            except ValueError:
+                raise ValueError(f"无法解析的列表值: {t!r}")
+        return vals
+
+    def _write_box_values(self, vals):
+        self.box.delete("1.0", "end")
+        self.box.insert("1.0", "\n".join(map(str, vals)))
+
+    def _on_rev_toggle(self):
+        """勾选/取消“列表值反转”：bit 模式重新生成，手动模式直接倒序现有内容。"""
+        if self.gen_var.get() in (GEN_MODE_SINGLE, GEN_MODE_CUMULATIVE):
+            self._refresh_param_states()
+            self._fill_from_bits()
+            return
+        try:
+            vals = self._read_box_values()
+        except ValueError as e:
+            self.rev_var.set(not self.rev_var.get())
+            self.tip_var.set(f"无法反转：{e}")
+            return
+        if not vals:
+            return
+        vals.reverse()
+        self._write_box_values(vals)
+        self.tip_var.set("已反转列表顺序：" + ", ".join(map(str, vals[:10]))
+                         + (" …" if len(vals) > 10 else ""))
 
     def _save(self):
         try:
-            raw = self.box.get("1.0", "end-1c")
-            tokens = re.split(r"[\s,，/;；、]+", raw)
-            vals = []
-            for t in tokens:
-                t = t.strip()
-                if not t:
-                    continue
-                try:
-                    vals.append(int(t, 10))
-                except ValueError:
-                    raise ValueError(f"无法解析的列表值: {t!r}")
+            vals = self._read_box_values()
             if not vals:
                 raise ValueError("请至少输入一个数字")
             if any(v < 0 for v in vals):
@@ -1004,6 +1118,8 @@ class LListDialog:
                 "bytes": self.bytes_var.get().strip() or "1",
                 "start": self.start_var.get().strip() or "0",
                 "bits": self.bits_var.get().strip() or "4",
+                "rev": "1" if self.rev_var.get() else "0",
+                "ff": "1" if (self._ff_active() and self.ff_var.get()) else "0",
             }
             self.on_save(vals,
                          self.hold_var.get().strip() or "0",
@@ -1095,7 +1211,7 @@ class UdpPage(ttk.Frame):
         self._dlg_t_range = None
         self._dlg_l_list = None
         self.l_gen_state = {"mode": GEN_MODE_MANUAL, "bytes": "1",
-                            "start": "0", "bits": "4"}
+                            "start": "0", "bits": "4", "rev": "0", "ff": "0"}
 
         self.ui_queue = queue.Queue()
         self._schedule_poll()
@@ -1146,6 +1262,8 @@ class UdpPage(ttk.Frame):
             "bytes": self.app.load_setting("udp.list_gen_bytes", "1"),
             "start": self.app.load_setting("udp.list_gen_start", "0"),
             "bits": self.app.load_setting("udp.list_gen_bits", "4"),
+            "rev": self.app.load_setting("udp.list_gen_rev", "0") or "0",
+            "ff": self.app.load_setting("udp.list_gen_ff", "0") or "0",
         }
 
         t_min = self.app.load_setting("udp.t_min", "")
@@ -1182,6 +1300,8 @@ class UdpPage(ttk.Frame):
         self.app.save_setting("udp.list_gen_bytes", gs.get("bytes", "1"))
         self.app.save_setting("udp.list_gen_start", gs.get("start", "0"))
         self.app.save_setting("udp.list_gen_bits", gs.get("bits", "4"))
+        self.app.save_setting("udp.list_gen_rev", gs.get("rev", "0"))
+        self.app.save_setting("udp.list_gen_ff", gs.get("ff", "0"))
         if self.t_range is not None:
             self.app.save_setting("udp.t_min", str(self.t_range[0]))
             self.app.save_setting("udp.t_max", str(self.t_range[1]))
@@ -1615,7 +1735,7 @@ class TcpServerPage(ttk.Frame):
         self._dlg_t_range = None
         self._dlg_l_list = None
         self.l_gen_state = {"mode": GEN_MODE_MANUAL, "bytes": "1",
-                            "start": "0", "bits": "4"}
+                            "start": "0", "bits": "4", "rev": "0", "ff": "0"}
 
         self.ui_queue = queue.Queue()
         self._schedule_poll()
@@ -1665,6 +1785,8 @@ class TcpServerPage(ttk.Frame):
             "bytes": self.app.load_setting("tcp.list_gen_bytes", "1"),
             "start": self.app.load_setting("tcp.list_gen_start", "0"),
             "bits": self.app.load_setting("tcp.list_gen_bits", "4"),
+            "rev": self.app.load_setting("tcp.list_gen_rev", "0") or "0",
+            "ff": self.app.load_setting("tcp.list_gen_ff", "0") or "0",
         }
 
         t_min = self.app.load_setting("tcp.t_min", "")
@@ -1699,6 +1821,8 @@ class TcpServerPage(ttk.Frame):
         self.app.save_setting("tcp.list_gen_bytes", gs.get("bytes", "1"))
         self.app.save_setting("tcp.list_gen_start", gs.get("start", "0"))
         self.app.save_setting("tcp.list_gen_bits", gs.get("bits", "4"))
+        self.app.save_setting("tcp.list_gen_rev", gs.get("rev", "0"))
+        self.app.save_setting("tcp.list_gen_ff", gs.get("ff", "0"))
         if self.t_range is not None:
             self.app.save_setting("tcp.t_min", str(self.t_range[0]))
             self.app.save_setting("tcp.t_max", str(self.t_range[1]))
