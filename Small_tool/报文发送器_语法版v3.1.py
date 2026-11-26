@@ -81,6 +81,13 @@ import re
 import queue
 import datetime
 
+try:
+    import ctypes
+    from ctypes import wintypes
+except Exception:      # 非 Windows / 裁剪环境
+    ctypes = None
+    wintypes = None
+
 REG_PATH = r"Software\UdpHexSender"
 
 # L 列表生成方式
@@ -1472,6 +1479,361 @@ class TemplatePanel(ttk.Frame):
 
 
 # ============================================================
+# 标题栏「置顶」按钮
+# ============================================================
+
+class TitleBarPin:
+    """在系统标题栏“最小化”左侧浮一个图钉，点击切换窗口始终置顶。
+
+    不改系统标题栏：用一个 overrideredirect + 透明色的小窗贴在标题栏上，
+    只有图钉图形本身接收点击，其余区域点击穿透；窗口移动/缩放/最大化时跟随，
+    主窗口不在前台或最小化时自动隐藏。
+    """
+
+    TRANSPARENT_KEY = "#010203"
+    BUTTONS_TOTAL_DIP = 138     # 最小化/最大化/关闭 三个按钮的总宽（100% DPI 下 46×3）
+    W_DIP, H_DIP = 26, 26       # 按钮占位（100% DPI 下 26×26）
+    GAP_DIP = 4
+    ICON_DIP = 24               # 图标显示边长；图片会等比缩放到这个尺寸内
+    IMAGE_NAMES = ("置顶.png", "pin.png", "置顶图标.png", "topmost.png")
+
+    def __init__(self, root, pinned=False, on_change=None):
+        self.root = root
+        self.pinned = bool(pinned)
+        self.on_change = on_change
+        self.user32 = None
+        self.win = None
+        self.canvas = None
+        self.hover = False
+        self.visible = False
+        self.scale = 1.0
+        self._after_id = None
+        self.photo = None
+        self.img_path = None
+
+        if ctypes is None:
+            return
+        try:
+            self.user32 = ctypes.windll.user32
+        except Exception:
+            self.user32 = None
+            return
+
+        self._create()
+        self._apply_state()
+        self.root.bind("<Configure>", self._on_root_configure, add="+")
+        self._after_id = self.root.after(150, self._tick)
+
+    # ---------------- 构建 ----------------
+
+    def _create(self):
+        win = tk.Toplevel(self.root)
+        win.withdraw()
+        win.overrideredirect(True)
+        try:
+            win.attributes("-topmost", True)
+        except Exception:
+            pass
+        transparent_ok = True
+        try:
+            win.attributes("-transparentcolor", self.TRANSPARENT_KEY)
+        except Exception:
+            transparent_ok = False
+        bg = self.TRANSPARENT_KEY if transparent_ok else "#f0f0f0"
+
+        self.scale = self._dpi()
+        w, h = self._size()
+        self.canvas = tk.Canvas(win, width=w, height=h, bg=bg,
+                                highlightthickness=0, bd=0)
+        self.canvas.pack()
+        self.canvas.configure(cursor="hand2")
+        self.canvas.bind("<Button-1>", self._on_click)
+        self.canvas.bind("<Enter>", self._on_enter)
+        self.canvas.bind("<Leave>", self._on_leave)
+        self.win = win
+        self.photo = self._load_icon()
+        self._draw()
+
+    def _dpi(self):
+        try:
+            v = self.root.winfo_fpixels("1i") / 96.0
+            return v if 0.5 <= v <= 4 else 1.0
+        except Exception:
+            return 1.0
+
+    def _size(self):
+        s = self.scale
+        return max(14, round(self.W_DIP * s)), max(12, round(self.H_DIP * s))
+
+    # ---------------- 绘制 ----------------
+
+    # ---------------- 图标图片 ----------------
+
+    def _icon_target(self):
+        return max(10, round(self.ICON_DIP * self.scale))
+
+    def _icon_candidates(self):
+        """exe/脚本同级的候选图标：先按固定文件名，再兜底匹配 *pin*.png / 置顶*.png。"""
+        base = app_base_dir()
+        paths = [os.path.join(base, n) for n in self.IMAGE_NAMES]
+        try:
+            for name in sorted(os.listdir(base)):
+                low = name.lower()
+                if not low.endswith(".png"):
+                    continue
+                if "pin" in low or name.startswith("置顶"):
+                    paths.append(os.path.join(base, name))
+        except OSError:
+            pass
+        out, seen = [], set()
+        for path in paths:
+            if path not in seen:
+                seen.add(path)
+                out.append(path)
+        return out
+
+    def _load_icon(self):
+        """优先用同级目录里的图钉图片；找不到或读不了则返回 None（用内置画法）。"""
+        for path in self._icon_candidates():
+            if not os.path.isfile(path):
+                continue
+            photo = self._load_scaled(path, self._icon_target())
+            if photo is not None:
+                self.img_path = path
+                return photo
+        return None
+
+    def _load_scaled(self, path, target):
+        """等比缩放到 target 边长内：有 PIL 用 LANCZOS，没有就整数倍降采样。"""
+        try:
+            from PIL import Image, ImageTk
+            im = Image.open(path)
+            im = im.convert("RGBA")
+            w, h = im.size
+            if max(w, h) != target:
+                f = target / float(max(w, h))
+                im = im.resize((max(1, round(w * f)), max(1, round(h * f))),
+                               Image.LANCZOS)
+            return ImageTk.PhotoImage(im, master=self.root)
+        except Exception:
+            pass
+        try:
+            img = tk.PhotoImage(file=path, master=self.root)
+        except Exception:
+            return None
+        w, h = img.width(), img.height()
+        if w > target or h > target:
+            f = max(1, min(w // target, h // target))
+            if f >= 2:
+                try:
+                    img = img.subsample(f, f)
+                except Exception:
+                    pass
+        return img
+
+    # ---------------- 绘制 ----------------
+
+    def _draw(self):
+        if self.canvas is None:
+            return
+        c = self.canvas
+        c.delete("all")
+        s = self.scale
+        w, h = self._size()
+
+        # 置顶时铺一层浅蓝底，作为“已钉住”的状态提示
+        if self.pinned:
+            c.create_rectangle(0, 0, w, h, fill="#D9E8FB", outline="")
+
+        if self.photo is not None:
+            c.create_image(w // 2, h // 2, image=self.photo)
+            return
+
+        if self.pinned:
+            color = "#1565C0"
+        elif self.hover:
+            color = "#333333"
+        else:
+            color = "#8C8C8C"
+
+        # 内置画法：宽扁帽 → 收窄钉身 → 细针（整体在按钮内居中）
+        cx = w / 2.0
+        glyph_h = 14.6 * s
+        top = (h - glyph_h) / 2.0
+        cap_top = top
+        cap_bot = top + 3.2 * s
+        body_bot = top + 7.4 * s
+        needle_bot = top + glyph_h
+        cap_half = 6.4 * s
+        body_half = 2.2 * s
+        c.create_rectangle(cx - cap_half, cap_top, cx + cap_half, cap_bot,
+                           fill=color, outline=color)
+        c.create_polygon(cx - cap_half, cap_bot, cx + cap_half, cap_bot,
+                         cx + body_half, body_bot, cx - body_half, body_bot,
+                         fill=color, outline=color)
+        c.create_line(cx, body_bot, cx, needle_bot,
+                      fill=color, width=max(1, round(1.2 * s)))
+
+    # ---------------- 位置 ----------------
+
+    def _root_hwnd(self):
+        try:
+            return self.user32.GetAncestor(self.root.winfo_id(), 2)  # GA_ROOT
+        except Exception:
+            return 0
+
+    def _win_hwnd(self):
+        try:
+            return self.user32.GetAncestor(self.win.winfo_id(), 2)
+        except Exception:
+            return 0
+
+    def _window_rect(self, hwnd):
+        if not hwnd:
+            return None
+        try:
+            rect = wintypes.RECT()
+            if not self.user32.GetWindowRect(hwnd, ctypes.byref(rect)):
+                return None
+            return rect.left, rect.top, rect.right, rect.bottom
+        except Exception:
+            return None
+
+    def _place(self):
+        if self.win is None:
+            return
+        rect = self._window_rect(self._root_hwnd())
+        if rect is None:
+            return
+        s = self._dpi()
+        if abs(s - self.scale) > 0.01:
+            self.scale = s
+            w, h = self._size()
+            self.canvas.configure(width=w, height=h)
+            self.photo = self._load_icon()
+            self._draw()
+
+        w, h = self._size()
+        left, top, right, bottom = rect
+        border_r = max(0, right - (self.root.winfo_rootx() + self.root.winfo_width()))
+        vis_top = max(0, top)       # 最大化时外框顶部在屏幕外
+        cap_h = self.root.winfo_rooty() - vis_top
+        if cap_h <= 4:
+            cap_h = round(31 * s)
+        btn_total = round(self.BUTTONS_TOTAL_DIP * s)
+        x = right - border_r - btn_total - round(self.GAP_DIP * s) - w
+        y = vis_top + max(0, (cap_h - h) // 2)
+        try:
+            self.win.geometry(f"{w}x{h}+{x}+{y}")
+        except Exception:
+            pass
+
+    def _on_root_configure(self, _event=None):
+        if self.visible:
+            self._place()
+
+    # ---------------- 显示 / 隐藏 ----------------
+
+    def _hide(self):
+        if self.win is not None and self.visible:
+            try:
+                self.win.withdraw()
+            except Exception:
+                pass
+            self.visible = False
+
+    def _tick(self):
+        self._after_id = None
+        if self.win is None:
+            return
+        try:
+            self._update_visibility()
+        except Exception:
+            pass
+        try:
+            self._after_id = self.root.after(150, self._tick)
+        except Exception:
+            pass
+
+    def _update_visibility(self):
+        try:
+            state = self.root.state()
+        except Exception:
+            self._hide()
+            return
+        if state in ("iconic", "withdrawn"):
+            self._hide()
+            return
+
+        root_hwnd = self._root_hwnd()
+        fg = self.user32.GetForegroundWindow()
+        mine = fg and (fg == root_hwnd or fg == self._win_hwnd())
+        # 未置顶时只在主窗口位于前台才显示；已置顶时窗口一直可见，图钉保持可见便于随时取消
+        if not mine and not self.pinned:
+            self._hide()
+            return
+
+        self._place()
+        if not self.visible:
+            try:
+                self.win.deiconify()
+            except Exception:
+                return
+            self.visible = True
+        try:
+            self.win.lift()     # 主窗口置顶时也要保证图钉压在标题栏之上
+        except Exception:
+            pass
+
+    # ---------------- 交互 ----------------
+
+    def _on_enter(self, _event=None):
+        self.hover = True
+        self._draw()
+
+    def _on_leave(self, _event=None):
+        self.hover = False
+        self._draw()
+
+    def _on_click(self, _event=None):
+        self.toggle()
+        return "break"
+
+    def toggle(self):
+        self.set(not self.pinned)
+
+    def set(self, pinned):
+        self.pinned = bool(pinned)
+        self._apply_state()
+        self._draw()
+        if self.on_change is not None:
+            try:
+                self.on_change(self.pinned)
+            except Exception:
+                pass
+
+    def _apply_state(self):
+        try:
+            self.root.attributes("-topmost", True if self.pinned else False)
+        except Exception:
+            pass
+
+    def destroy(self):
+        if self._after_id is not None:
+            try:
+                self.root.after_cancel(self._after_id)
+            except Exception:
+                pass
+            self._after_id = None
+        if self.win is not None:
+            try:
+                self.win.destroy()
+            except Exception:
+                pass
+            self.win = None
+
+
+# ============================================================
 # 主窗口
 # ============================================================
 
@@ -1507,6 +1869,7 @@ class App:
         self.tcp_sent = 0
 
         self.ui_queue = queue.Queue()
+        self._poll_after_id = None
         self._schedule_poll()
         self._seg_after_id = None
         self._seg_cache = (None, None)
@@ -1541,10 +1904,31 @@ class App:
         self._update_seg_label()
         self._on_template_modified(reset=True)
 
+        # 标题栏“置顶”图钉（失败则静默跳过，不影响主功能）
+        self.pin = None
+        try:
+            self.pin = TitleBarPin(
+                self.root,
+                pinned=(self.load_setting("ui.topmost", "0") == "1"),
+                on_change=self._on_pin_changed,
+            )
+        except Exception:
+            self.pin = None
+
+    def _on_pin_changed(self, pinned):
+        self.save_setting("ui.topmost", "1" if pinned else "0")
+        if pinned:
+            self.status_var.set("已置顶：窗口将始终显示在最前（再点图钉取消）")
+        else:
+            self.status_var.set("已取消置顶")
+
     # ---------------- 队列 / 日志 ----------------
 
     def _schedule_poll(self):
-        self.root.after(50, self._poll_queue)
+        try:
+            self._poll_after_id = self.root.after(50, self._poll_queue)
+        except Exception:
+            self._poll_after_id = None
 
     def _poll_queue(self):
         while True:
@@ -2555,6 +2939,11 @@ class App:
         except Exception:
             pass
         self.save_setting("ui.protocol", self.var_proto.get())
+        try:
+            if self.pin is not None:
+                self.save_setting("ui.topmost", "1" if self.pin.pinned else "0")
+        except Exception:
+            pass
 
         self.save_setting("common.template",
                           self.txt_template.get("1.0", "end-1c"))
@@ -2594,6 +2983,17 @@ class App:
             self.udp_stop.set()
             self.tcp_stop.set()
             self.server_stop.set()
+        except Exception:
+            pass
+        try:
+            if self._poll_after_id is not None:
+                self.root.after_cancel(self._poll_after_id)
+                self._poll_after_id = None
+        except Exception:
+            pass
+        try:
+            if self.pin is not None:
+                self.pin.destroy()
         except Exception:
             pass
         try:
